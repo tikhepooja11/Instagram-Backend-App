@@ -31,7 +31,6 @@ public class UserService {
           List<User> allUsersList = new ArrayList<User>();
           allUsersIterable.forEach(user -> allUsersList.add(user));
           return allUsersList;
-
      }
 
      public Optional<User> findUserById(int userId) {

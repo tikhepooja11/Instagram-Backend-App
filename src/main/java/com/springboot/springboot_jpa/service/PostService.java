@@ -1,9 +1,11 @@
 package com.springboot.springboot_jpa.service;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import com.springboot.springboot_jpa.servicetypes.CreatePostRequest;
 import com.springboot.springboot_jpa.servicetypes.GetPostDTO;
 import com.springboot.springboot_jpa.servicetypes.PostsHashtagDTO;
 import com.springboot.springboot_jpa.servicetypes.PostsUserDTO;
+import com.springboot.springboot_jpa.servicetypes.UpdatePostRequest;
 import com.springboot.springboot_jpa.servicetypes.UpdateUser;
 
 @Service
@@ -27,15 +30,38 @@ public class PostService {
      @Autowired
      private PostRepository postRepository;
 
-     public PostService(PostRepository postRepository) {
+     @Autowired
+     private HashtagService hashtagService;
+
+     public PostService(PostRepository postRepository, HashtagService hashtagService) {
           this.postRepository = postRepository;
+          this.hashtagService = hashtagService;
      }
 
      public Post createPost(CreatePostRequest newPost, User existingUser) {
           Post post = new Post(newPost.getPostId(), newPost.getContent(), existingUser,
                     newPost.getHashtags());
+          // Post savedPost = this.postRepository.save(post);
+          Set<Hashtag> updatedHashtags = this.hashtagService.updateHashtagsOnNewPostCreation(post,
+                    newPost.getHashtags());
+          post.setHashtags(updatedHashtags);
           Post savedPost = this.postRepository.save(post);
           return savedPost;
+     }
+
+     public List<GetPostDTO> findAllPosts() {
+          Iterable<Post> allPostsIterable = this.postRepository.findAll();
+          List<GetPostDTO> postDTOList = new ArrayList<>();
+          for (Post post : allPostsIterable) {
+               GetPostDTO postDTO = mapPostToDTO(post);
+               postDTOList.add(postDTO);
+          }
+          return postDTOList;
+     }
+
+     public GetPostDTO mapPostToDTO(Post post) {
+          return new GetPostDTO(post.getPostId(), post.getUser().getUserId(), post.getContent(), post.getComments(),
+                    post.getHashtags(), post.getPostedAt(), post.getLastUpdatedAt(), post.getShares(), post.getLikes());
      }
 
      public GetPostDTO findPost(int postId) {
@@ -67,7 +93,10 @@ public class PostService {
 
           List<PostsHashtagDTO> postsHashtagDTOList = new ArrayList<>();
           for (Hashtag hashtag : postHashtags) {
-               for (Post post : hashtag.getPosts()) {
+               Set<Post> updatedPosts = hashtag.getPosts().stream()
+                         .filter(p -> postsIds.contains(p.getPostId()))
+                         .collect(Collectors.toSet());
+               for (Post post : updatedPosts) {
                     PostsHashtagDTO postsHashtagDTO = new PostsHashtagDTO();
                     postsHashtagDTO.setHashtagId(hashtag.getHashtagId());
                     postsHashtagDTO.setHashtagName(hashtag.getHashtagName());
@@ -81,6 +110,34 @@ public class PostService {
 
      public void deletePost(int postId) {
           this.postRepository.deleteById(postId);
+     }
+
+     public GetPostDTO updatePost(int postId, UpdatePostRequest updatePostRequest) {
+          Optional<Post> post = this.postRepository.findById(postId);
+          if (post.isPresent()) {
+               Post exisitingPost = post.get();
+               if (updatePostRequest.getContent() != null) {
+                    exisitingPost.setContent(updatePostRequest.getContent());
+               }
+               if (updatePostRequest.getHashtags() != null) {
+                    Set<Hashtag> updatedHashtags = this.hashtagService.updateHashtags(exisitingPost,
+                              updatePostRequest.getHashtags());
+                    exisitingPost.setHashtags(updatedHashtags);
+               }
+               if (updatePostRequest.getLikes() != 0) {
+                    exisitingPost.setLikes(updatePostRequest.getLikes());
+               }
+               if (updatePostRequest.getShares() != 0) {
+                    exisitingPost.setShares(updatePostRequest.getShares());
+               }
+               exisitingPost.setLastUpdatedAt(new Date());
+               this.postRepository.save(exisitingPost);
+               return new GetPostDTO(exisitingPost.getPostId(), exisitingPost.getUser().getUserId(),
+                         exisitingPost.getContent(), exisitingPost.getComments(), exisitingPost.getHashtags(),
+                         exisitingPost.getPostedAt(), exisitingPost.getLastUpdatedAt(), exisitingPost.getShares(),
+                         exisitingPost.getLikes());
+          }
+          return null;
      }
 
      // public User updateUser(int userId, UpdateUser postDataTobeUpdated) {

@@ -6,8 +6,10 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +19,7 @@ import com.springboot.springboot_jpa.entity.Post;
 import com.springboot.springboot_jpa.entity.Hashtag;
 import com.springboot.springboot_jpa.entity.User;
 import com.springboot.springboot_jpa.entity.UserActivityStats;
+import com.springboot.springboot_jpa.exceptions.EmptyUsersListException;
 import com.springboot.springboot_jpa.exceptions.UserNotFoundException;
 import com.springboot.springboot_jpa.service.PostService;
 import com.springboot.springboot_jpa.service.UserService;
@@ -25,6 +28,7 @@ import com.springboot.springboot_jpa.servicetypes.GetPostDTO;
 import com.springboot.springboot_jpa.servicetypes.PostIdsRequest;
 import com.springboot.springboot_jpa.servicetypes.PostsHashtagDTO;
 import com.springboot.springboot_jpa.servicetypes.PostsUserDTO;
+import com.springboot.springboot_jpa.servicetypes.UpdatePostRequest;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -54,6 +58,15 @@ public class PostController {
           return this.postService.createPost(newPost, existingUser);
      }
 
+     @GetMapping("/post")
+     public ResponseEntity<List<GetPostDTO>> findAllPosts() {
+          List<GetPostDTO> postList = this.postService.findAllPosts();
+          if (postList.size() <= 0) {
+               throw new EmptyUsersListException("Posts list is empty...! No post exist in database.");
+          }
+          return ResponseEntity.ok(postList);
+     }
+
      @GetMapping("/post/{id}")
      public GetPostDTO findPost(@PathVariable("id") int postId) {
           GetPostDTO post = this.postService.findPost(postId);
@@ -65,16 +78,28 @@ public class PostController {
 
      @DeleteMapping("/post/delete/{id}")
      public void deletePost(@PathVariable("id") int postId) {
+          GetPostDTO post = this.postService.findPost(postId);
+          if (post == null) {
+               throw new UserNotFoundException("Post with id " + postId + " not found");
+          }
           this.postService.deletePost(postId);
      }
 
      @GetMapping("/post/{postId}/user")
      public PostsUserDTO findPostsUser(@PathVariable("postId") int postId) {
+          GetPostDTO post = this.postService.findPost(postId);
+          if (post == null) {
+               throw new UserNotFoundException("Post with id " + postId + " not found");
+          }
           return this.postService.findPostsUser(postId);
      }
 
      @GetMapping("/post/{postId}/hashtags")
      public Set<Hashtag> findPostsHashtags(@PathVariable("postId") int postId) {
+          GetPostDTO post = this.postService.findPost(postId);
+          if (post == null) {
+               throw new UserNotFoundException("Post with id " + postId + " not found");
+          }
           return this.postService.findPostsHashtags(postId);
      }
 
@@ -82,6 +107,15 @@ public class PostController {
      public List<PostsHashtagDTO> findMultiplePostsHashtags(@RequestBody PostIdsRequest postIdsRequest) {
           List<Integer> postIdsList = postIdsRequest.getPostIds();
           return this.postService.findMultiplePostsHashtags(postIdsList);
+     }
+
+     @PatchMapping("/post/update/{id}")
+     public GetPostDTO updatePost(@PathVariable("id") int postId, @RequestBody UpdatePostRequest updatePostRequest) {
+          GetPostDTO updatedPost = this.postService.updatePost(postId, updatePostRequest);
+          if (updatedPost == null) {
+               System.out.println("Error in updating a post");
+          }
+          return updatedPost;
      }
 
 }
